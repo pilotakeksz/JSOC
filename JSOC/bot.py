@@ -540,7 +540,7 @@ async def tuna_deploy(ctx: commands.Context, *, _flags: str = ""):
     reload_results = await _reload_all_cogs()
 
 
-    msg = f"Git pull exit code: {code}\n\nStdout:\n{out_text}\n\nStderr:\n{err_text}\n\n"
+    msg = f"Exit code: {code}\n\n"
     def _fmt_list(lst):
         return "\n".join(lst) if lst else "None"
 
