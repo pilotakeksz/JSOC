@@ -230,8 +230,11 @@ class WarrantView(discord.ui.View):
 
     async def _close(self, interaction, status):
         try:
-            # Only SERVER_B_PERSONNEL_ROLE can close warrants
-            if SERVER_B_PERSONNEL_ROLE not in [r.id for r in interaction.user.roles]:
+            # Check for the appropriate personnel role based on the user's guild
+            allowed_roles = {SERVER_B_PERSONNEL_ROLE}
+            if interaction.guild and interaction.guild.id == SERVER_A_GUILD_ID:
+                allowed_roles.add(SERVER_A_PERSONNEL_ROLE)
+            if not any(r.id in allowed_roles for r in interaction.user.roles):
                 return await interaction.response.send_message("You lack the required role to close warrants.", ephemeral=True)
 
             await interaction.response.defer(ephemeral=True)
@@ -336,8 +339,11 @@ class WarrantsCog(commands.Cog):
             if not cfg:
                 return await interaction.response.send_message("No permission", ephemeral=True)
 
-            # Only SERVER_B_PERSONNEL_ROLE can issue warrants
-            if SERVER_B_PERSONNEL_ROLE not in [r.id for r in interaction.user.roles]:
+            # Only personnel roles can issue warrants
+            allowed_roles = {SERVER_B_PERSONNEL_ROLE}
+            if interaction.guild and interaction.guild.id == SERVER_A_GUILD_ID:
+                allowed_roles.add(SERVER_A_PERSONNEL_ROLE)
+            if not any(r.id in allowed_roles for r in interaction.user.roles):
                 return await interaction.response.send_message("You lack the required role to issue warrants.", ephemeral=True)
 
             await interaction.response.defer(ephemeral=True)
