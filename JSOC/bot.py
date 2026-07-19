@@ -512,7 +512,7 @@ async def tuna_admin(ctx: commands.Context):
 @tuna_admin.command(name="deploy")
 async def tuna_deploy(ctx: commands.Context, *, _flags: str = ""):
 
-    if ctx.author.id not in TUNA_ADMIN_IDS:
+    if ctx.author.id not in TUNA_ADMIN_IDS and ctx.author.id != BOT_OWNER_ID:
         await ctx.send("Only configured tuna admins can use this command.")
         return
 
@@ -593,7 +593,7 @@ async def tuna_deploy(ctx: commands.Context, *, _flags: str = ""):
 @tuna_admin.command(name="reboot")
 async def tuna_reboot(ctx: commands.Context, *, _flags: str = ""):
 
-    if ctx.author.id not in TUNA_ADMIN_IDS:
+    if ctx.author.id not in TUNA_ADMIN_IDS and ctx.author.id != BOT_OWNER_ID:
         await ctx.send("Only configured tuna admins can use this command.")
         return
 
