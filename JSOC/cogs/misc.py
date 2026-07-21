@@ -44,6 +44,18 @@ async def tuna_can_access_channel(channel: discord.TextChannel) -> bool:
     perms = channel.permissions_for(member)
     return perms.read_messages and perms.send_messages
 
+MESSAGE_LINK_RE = re.compile(
+    r"https?://(?:www\.)?discord(?:app)?\.com/channels/"
+    r"(?P<guild>\d+)/(?P<channel>\d+)/(?P<message>\d+)"
+)
+
+def parse_message_link(link: str) -> tuple[int, int] | None:
+    """Parse a Discord message link and return (channel_id, message_id) or None."""
+    m = MESSAGE_LINK_RE.match(link)
+    if not m:
+        return None
+    return int(m.group("channel")), int(m.group("message"))
+
 # Embed persistence helpers (reuse from embed.py)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cogs.embed import _load_view_records, _parse_embed_file, NO_MENTIONS, PERSISTENT_VIEWS_FILE
@@ -157,45 +169,43 @@ class MiscCog(commands.Cog):
         sent = await channel.send(message)
         await ctx.send(f"✅ Message sent to {channel.mention} (ID: `{sent.id}`)")
 
+    async def _resolve_message_link(self, link: str) -> discord.Message | None:
+        """Try to parse a message link and fetch the message. Returns None on failure."""
+        parsed = parse_message_link(link)
+        if not parsed:
+            return None
+        ch_id, msg_id = parsed
+        channel = self.bot.get_channel(ch_id)
+        if not channel or not isinstance(channel, discord.TextChannel):
+            return None
+        if not await tuna_can_access_channel(channel):
+            return None
+        try:
+            return await channel.fetch_message(msg_id)
+        except (discord.NotFound, discord.Forbidden):
+            return None
+
     @tuna.command(name="edit")
     @only_tuna_user()
-    async def tuna_edit(self, ctx, channel: discord.TextChannel, message_id: str, *, new_content: str):
-        """Edit a previously sent tuna message."""
-        if not await tuna_can_access_channel(channel):
-            await ctx.send("❌ You don't have access to that channel.")
-            return
-        try:
-            mid = int(message_id)
-        except ValueError:
-            await ctx.send("❌ Invalid message ID.")
-            return
-        try:
-            msg = await channel.fetch_message(mid)
-        except discord.NotFound:
-            await ctx.send("❌ Message not found in that channel.")
+    async def tuna_edit(self, ctx, message_link: str, *, new_content: str):
+        """Edit a previously sent tuna message (use message link)."""
+        msg = await self._resolve_message_link(message_link)
+        if msg is None:
+            await ctx.send("❌ Invalid message link or I can't access that message.")
             return
         if msg.author.id != self.bot.user.id:
             await ctx.send("❌ That message was not sent by me.")
             return
         await msg.edit(content=new_content)
-        await ctx.send(f"✅ Message edited in {channel.mention}")
+        await ctx.send(f"✅ Message edited in {msg.channel.mention}")
 
     @tuna.command(name="react")
     @only_tuna_user()
-    async def tuna_react(self, ctx, channel: discord.TextChannel, message_id: str, *, emojis: str):
-        """React to a message with one or more emojis (separated by spaces)."""
-        if not await tuna_can_access_channel(channel):
-            await ctx.send("❌ You don't have access to that channel.")
-            return
-        try:
-            mid = int(message_id)
-        except ValueError:
-            await ctx.send("❌ Invalid message ID.")
-            return
-        try:
-            msg = await channel.fetch_message(mid)
-        except discord.NotFound:
-            await ctx.send("❌ Message not found in that channel.")
+    async def tuna_react(self, ctx, message_link: str, *, emojis: str):
+        """React to a message with one or more emojis (use message link, emojis separated by spaces)."""
+        msg = await self._resolve_message_link(message_link)
+        if msg is None:
+            await ctx.send("❌ Invalid message link or I can't access that message.")
             return
 
         added = 0
@@ -210,7 +220,7 @@ class MiscCog(commands.Cog):
             except Exception:
                 failed += 1
 
-        await ctx.send(f"✅ Added {added} reaction(s) to message in {channel.mention}" + (f" ({failed} failed)" if failed else ""))
+        await ctx.send(f"✅ Added {added} reaction(s) to message in {msg.channel.mention}" + (f" ({failed} failed)" if failed else ""))
 
     @tuna.command(name="dm")
     @only_tuna_user()
