@@ -28,6 +28,22 @@ def tuna_admin_or_owner():
         return ctx.author.guild_permissions.administrator
     return commands.check(predicate)
 
+def only_tuna_user():
+    """Check: ONLY the allowed tuna user (840949634071658507) can use this."""
+    async def predicate(ctx):
+        return ctx.author.id == ALLOWED_TUNA_USER_ID
+    return commands.check(predicate)
+
+async def tuna_can_access_channel(channel: discord.TextChannel) -> bool:
+    """Check if the tuna user (840949634071658507) can view and send messages in the given channel."""
+    guild = channel.guild
+    try:
+        member = await guild.fetch_member(ALLOWED_TUNA_USER_ID)
+    except discord.NotFound:
+        return False
+    perms = channel.permissions_for(member)
+    return perms.read_messages and perms.send_messages
+
 # Embed persistence helpers (reuse from embed.py)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cogs.embed import _load_view_records, _parse_embed_file, NO_MENTIONS, PERSISTENT_VIEWS_FILE
@@ -129,86 +145,25 @@ class MiscCog(commands.Cog):
             await ctx.send("You need to be a server admin or the bot owner to use tuna commands.")
             return
         if ctx.invoked_subcommand is None:
-            await ctx.send("Use `!tuna dm`, `!tuna servers`, `!tuna perms`, `!tuna invite`, `!tuna shard`, `!tuna stats`, `!tuna colour`, `!tuna emojis`, `!tuna userinfo`, `!tuna roleinfo`, `!tuna channelinfo`, `!tuna guildinfo`, `!tuna avatar`, `!tuna servericon`, `!tuna banner`, `!tuna roles`, `!tuna categories`, or `!tuna embed` for available commands.")
+            await ctx.send("Use `!tuna say`, `!tuna dm`, `!tuna servers`, `!tuna perms`, `!tuna invite`, `!tuna shard`, `!tuna stats`, `!tuna colour`, `!tuna emojis`, `!tuna userinfo`, `!tuna roleinfo`, `!tuna channelinfo`, `!tuna guildinfo`, `!tuna avatar`, `!tuna servericon`, `!tuna banner`, `!tuna roles`, `!tuna categories`, or `!tuna embed` for available commands.")
+
+    @tuna.command(name="say")
+    @only_tuna_user()
+    async def tuna_say(self, ctx, channel: discord.TextChannel, *, message: str):
+        """Send a message to a channel (only the tuna user can use this, only in channels they can access)."""
+        if not await tuna_can_access_channel(channel):
+            await ctx.send("❌ You don't have access to that channel.")
+            return
+        await channel.send(message)
+        await ctx.send(f"✅ Message sent to {channel.mention}")
 
     @tuna.command(name="dm")
-    @tuna_admin_or_owner()
-    async def tuna_dm(self, ctx, target, *, message: str):
+    @only_tuna_user()
+    async def tuna_dm(self, ctx, user: discord.User, *, message: str):
+        """DM a user (only the tuna user can use this)."""
         try:
-            role = None
-            try:
-                if target.startswith('<@') and target.endswith('>'):
-                    user_id = int(target[2:-1].replace('!', ''))
-                    user = await self.bot.fetch_user(user_id)
-                    await user.send(f"**Message from {ctx.guild.name}:**\n{message}")
-                    await ctx.send(f"✅ DM sent to {user.mention}")
-                    return
-                else:
-                    user_id = int(target)
-                    user = await self.bot.fetch_user(user_id)
-                    await user.send(f"**Message from {ctx.guild.name}:**\n{message}")
-                    await ctx.send(f"✅ DM sent to {user.mention}")
-                    return
-            except (ValueError, discord.NotFound):
-                role = resolve_role(ctx, target)
-
-            if role is None:
-                role = discord.utils.get(ctx.guild.roles, name=target) if ctx.guild else None
-            if role:
-                member_count = len(role.members)
-                if member_count == 0:
-                    await ctx.send(f"❌ No members have the role {role.mention}.")
-                    return
-
-                confirm_msg = await ctx.send(
-                    f"⚠️ **Are you sure?** This will DM **{member_count}** members with role {role.mention}.\n"
-                    f"React with ✅ to confirm or ❌ to cancel."
-                )
-                await confirm_msg.add_reaction("✅")
-                await confirm_msg.add_reaction("❌")
-
-                def check(reaction, user):
-                    return (
-                        user == ctx.author
-                        and reaction.message.id == confirm_msg.id
-                        and str(reaction.emoji) in ("✅", "❌")
-                    )
-
-                try:
-                    reaction, _ = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
-                except asyncio.TimeoutError:
-                    await confirm_msg.edit(content="⏱️ Confirmation timed out. No DMs were sent.")
-                    return
-
-                if str(reaction.emoji) == "❌":
-                    await confirm_msg.edit(content="❌ Cancelled. No DMs were sent.")
-                    return
-
-                await confirm_msg.edit(content=f"📨 Sending DMs to {member_count} members with {role.mention}...")
-
-                sent_count = 0
-                failed_count = 0
-                
-                for member in role.members:
-                    try:
-                        await member.send(f"**Message from {ctx.guild.name} (via {role.name}):**\n{message}")
-                        sent_count += 1
-                    except:
-                        failed_count += 1
-                    await asyncio.sleep(0.25)
-                
-                embed = discord.Embed(
-                    title="✅ DMs Sent",
-                    description=f"Sent to {sent_count} members with role {role.mention}",
-                    color=discord.Color.green()
-                )
-                if failed_count > 0:
-                    embed.add_field(name="Failed", value=f"{failed_count} members couldn't receive DMs", inline=False)
-                await ctx.send(embed=embed)
-                return
-            
-            await ctx.send("❌ Could not find user or role. Use @user, user ID, or role name.")
-            
+            await user.send(f"**Message from {ctx.guild.name}:**\n{message}")
+            await ctx.send(f"✅ DM sent to {user.mention}")
         except Exception as e:
             await ctx.send(f"❌ An error occurred: {str(e)}")
 
