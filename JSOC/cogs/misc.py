@@ -145,7 +145,7 @@ class MiscCog(commands.Cog):
             await ctx.send("You need to be a server admin or the bot owner to use tuna commands.")
             return
         if ctx.invoked_subcommand is None:
-            await ctx.send("Use `!tuna say`, `!tuna edit`, `!tuna dm`, `!tuna servers`, `!tuna perms`, `!tuna invite`, `!tuna shard`, `!tuna stats`, `!tuna colour`, `!tuna emojis`, `!tuna userinfo`, `!tuna roleinfo`, `!tuna channelinfo`, `!tuna guildinfo`, `!tuna avatar`, `!tuna servericon`, `!tuna banner`, `!tuna roles`, `!tuna categories`, or `!tuna embed` for available commands.")
+            await ctx.send("Use `!tuna say`, `!tuna edit`, `!tuna react`, `!tuna dm`, `!tuna servers`, `!tuna perms`, `!tuna invite`, `!tuna shard`, `!tuna stats`, `!tuna colour`, `!tuna emojis`, `!tuna userinfo`, `!tuna roleinfo`, `!tuna channelinfo`, `!tuna guildinfo`, `!tuna avatar`, `!tuna servericon`, `!tuna banner`, `!tuna roles`, `!tuna categories`, or `!tuna embed` for available commands.")
 
     @tuna.command(name="say")
     @only_tuna_user()
@@ -179,6 +179,38 @@ class MiscCog(commands.Cog):
             return
         await msg.edit(content=new_content)
         await ctx.send(f"✅ Message edited in {channel.mention}")
+
+    @tuna.command(name="react")
+    @only_tuna_user()
+    async def tuna_react(self, ctx, channel: discord.TextChannel, message_id: str, *, emojis: str):
+        """React to a message with one or more emojis (separated by spaces)."""
+        if not await tuna_can_access_channel(channel):
+            await ctx.send("❌ You don't have access to that channel.")
+            return
+        try:
+            mid = int(message_id)
+        except ValueError:
+            await ctx.send("❌ Invalid message ID.")
+            return
+        try:
+            msg = await channel.fetch_message(mid)
+        except discord.NotFound:
+            await ctx.send("❌ Message not found in that channel.")
+            return
+
+        added = 0
+        failed = 0
+        for raw in emojis.split():
+            emoji = raw.strip()
+            if not emoji:
+                continue
+            try:
+                await msg.add_reaction(emoji)
+                added += 1
+            except Exception:
+                failed += 1
+
+        await ctx.send(f"✅ Added {added} reaction(s) to message in {channel.mention}" + (f" ({failed} failed)" if failed else ""))
 
     @tuna.command(name="dm")
     @only_tuna_user()
