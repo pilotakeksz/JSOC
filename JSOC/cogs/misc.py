@@ -145,7 +145,7 @@ class MiscCog(commands.Cog):
             await ctx.send("You need to be a server admin or the bot owner to use tuna commands.")
             return
         if ctx.invoked_subcommand is None:
-            await ctx.send("Use `!tuna say`, `!tuna dm`, `!tuna servers`, `!tuna perms`, `!tuna invite`, `!tuna shard`, `!tuna stats`, `!tuna colour`, `!tuna emojis`, `!tuna userinfo`, `!tuna roleinfo`, `!tuna channelinfo`, `!tuna guildinfo`, `!tuna avatar`, `!tuna servericon`, `!tuna banner`, `!tuna roles`, `!tuna categories`, or `!tuna embed` for available commands.")
+            await ctx.send("Use `!tuna say`, `!tuna edit`, `!tuna dm`, `!tuna servers`, `!tuna perms`, `!tuna invite`, `!tuna shard`, `!tuna stats`, `!tuna colour`, `!tuna emojis`, `!tuna userinfo`, `!tuna roleinfo`, `!tuna channelinfo`, `!tuna guildinfo`, `!tuna avatar`, `!tuna servericon`, `!tuna banner`, `!tuna roles`, `!tuna categories`, or `!tuna embed` for available commands.")
 
     @tuna.command(name="say")
     @only_tuna_user()
@@ -154,8 +154,31 @@ class MiscCog(commands.Cog):
         if not await tuna_can_access_channel(channel):
             await ctx.send("❌ You don't have access to that channel.")
             return
-        await channel.send(message)
-        await ctx.send(f"✅ Message sent to {channel.mention}")
+        sent = await channel.send(message)
+        await ctx.send(f"✅ Message sent to {channel.mention} (ID: `{sent.id}`)")
+
+    @tuna.command(name="edit")
+    @only_tuna_user()
+    async def tuna_edit(self, ctx, channel: discord.TextChannel, message_id: str, *, new_content: str):
+        """Edit a previously sent tuna message."""
+        if not await tuna_can_access_channel(channel):
+            await ctx.send("❌ You don't have access to that channel.")
+            return
+        try:
+            mid = int(message_id)
+        except ValueError:
+            await ctx.send("❌ Invalid message ID.")
+            return
+        try:
+            msg = await channel.fetch_message(mid)
+        except discord.NotFound:
+            await ctx.send("❌ Message not found in that channel.")
+            return
+        if msg.author.id != self.bot.user.id:
+            await ctx.send("❌ That message was not sent by me.")
+            return
+        await msg.edit(content=new_content)
+        await ctx.send(f"✅ Message edited in {channel.mention}")
 
     @tuna.command(name="dm")
     @only_tuna_user()
